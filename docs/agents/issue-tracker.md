@@ -1,23 +1,10 @@
 # Issue tracker: GitHub
 
-Issues and PRs for this repo live on GitHub, `rawinan-soma/dds-sharing`. Use the `gh` CLI for all operations. The build's spec is `docs/spec.md`.
+Issues and PRs for this repo live on GitHub, `rawinan-soma/dds-sharing-FP`. Use the `gh` CLI for all operations. The build's spec is `docs/spec.md`.
 
 ## History
 
-- Issues #1–#98 were GitHub issues. On 2026-09-21 the open ones moved to markdown files under `.scratch/dds-sharing/issues/`; on 2026-09-30 the tracker moved back to GitHub.
-- **The closed files in `.scratch/dds-sharing/issues/` are history.** Read them; never add to them.
-- **Ticket numbers 99–105 in commits, ADRs and PRs dated before 2026-09-30 mean those files, not GitHub numbers.** GitHub numbers are shared with PRs, so on GitHub `#99`–`#102` are PRs. The open ones moved:
-
-  | File | GitHub |
-  |---|---|
-  | 77 | #77 (reopened) |
-  | 96 | #96 (reopened) |
-  | 101 | #122 |
-  | 103 | #123 |
-  | 104 | #124 |
-  | 105 | #125 |
-
-  99, 100 and 102 were closed and exist only as files.
+The tracker started empty. A `#NN` in commits, ADRs, `docs/` or code comments that predates this tracker's first issue is a historical label, not a link to an issue here; read the surrounding text for its meaning.
 
 ## Conventions
 

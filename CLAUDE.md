@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues and PRs live on GitHub (`gh`). The closed files under `.scratch/dds-sharing/issues/` are history, and their numbers 99–105 are not GitHub numbers. See `docs/agents/issue-tracker.md`.
+Issues and PRs live on GitHub (`gh`), `rawinan-soma/dds-sharing-FP`; `#NN` references older than its first issue are historical labels, not links. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
