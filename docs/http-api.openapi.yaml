@@ -1,0 +1,1071 @@
+openapi: 3.1.0
+info:
+  title: dds-sharing HTTP API (the Node Pilot, as built)
+  version: pilot-a788f33
+  description: |
+    The wire contract both halves of the Port must keep (wayfinder map
+    "port the service to elm-land + daisyUI and axum + SeaORM", ticket
+    "Write the current HTTP API down as a contract"). Written from the Nest
+    controllers in `apps/api/src` at commit a788f33, and checked against every
+    call `apps/web` makes.
+
+    This describes what the code does, not what the spec says. Where the two
+    disagree, `docs/spec.md`, `CONTEXT.md` and `docs/adr/` win, and the repo
+    owner rules on the disagreement; this file is then amended.
+
+    ## Shape of the surface
+
+    - Every JSON route sits under the global prefix `/api`.
+    - Excluded from the prefix (ADR 0018): `GET /d/{token}`,
+      `GET /d/{token}/archive` and `GET /link-expired`. These serve HTML or a
+      zip, never JSON.
+    - Every other GET is the Angular build's static files, with `index.html`
+      as the SPA fallback (`@nestjs/serve-static`). When the shell is served
+      for `/reviewer`, `/reviewer/...` or `/reviewer?...` it carries
+      `X-Robots-Tag: noindex, nofollow`.
+    - Bull Board listens on its own port, never the public one (spec §14.4).
+      It is not part of this contract.
+
+    ## Errors
+
+    Errors raised by our code are a bare JSON object (Nest passes an object
+    given to an `HttpException` through unchanged). There are two families:
+
+    - `/api/requests`: `{ "code": ..., ... }`.
+    - `/api/reviewer/**`: `{ "error": ... }`.
+
+    Errors raised by the framework keep Nest's default shape
+    `{ "statusCode", "message", "error" }`. That covers malformed JSON (400),
+    a non-integer `eventId` on amend-note (400, from `ParseIntPipe`) and an
+    unknown route (404). The Port should match the status. The body only has
+    to match where the Angular app reads it, which is the `error` field on
+    reviewer 401s.
+
+    Request bodies are JSON (`Content-Type: application/json`), parsed by
+    Express's default JSON parser (100 kB limit).
+
+    ## Reviewer authentication
+
+    - `reviewer_session` cookie: opaque session token. `HttpOnly`,
+      `SameSite=Lax`, `Path=/`, `Secure` when `secureCookies` is on.
+      `Expires` is the session's ceiling. The server also enforces the idle
+      window and the ceiling itself.
+    - `reviewer_csrf` cookie: a double-submit token (32 random bytes,
+      base64url). Not `HttpOnly`, same other attributes, session cookie (no
+      `Expires`). Issued by `GET /api/reviewer/session` when absent and
+      reissued on every successful sign-in. Sign-out does not clear it.
+    - Every non-GET/HEAD/OPTIONS route under `/api/reviewer` requires the
+      header `X-CSRF-Token` equal to the `reviewer_csrf` cookie, or the
+      response is `403 {"error":"csrf"}`. Sign-in is included. This check runs
+      before the session check.
+    - Session check (the `ReviewerSession` security scheme):
+      `401 {"error":"session_expired"}` or `401 {"error":"unauthenticated"}`.
+      A session still owing the forced first password change gets
+      `403 {"error":"password_change_required"}` everywhere except sign-out
+      and the password change. A request that passes the check slides the
+      idle window. `GET /api/reviewer/session` never slides it.
+    - The Angular app's interceptor treats a 401 whose `error` is
+      `session_expired` or `unauthenticated`, on any `/api/reviewer/` call
+      other than the credential calls, as "the session ended".
+
+    ## Ids
+
+    Request ids in paths are UUIDs, matched case-insensitively. Anything else
+    is `404 {"error":"not_found"}` (checked after the guards), never a 400.
+
+    ## Timestamps
+
+    Every timestamp is an ISO-8601 UTC string from `Date.toISOString()`
+    (`2026-10-26T03:04:05.678Z`). Days (`startDate`, `endDate`, `from`, `to`)
+    are `YYYY-MM-DD`.
+
+    ## Observed but not called by apps/web
+
+    - `POST /api/reviewer/decisions/{eventId}/amend-note`: no screen calls it.
+    - `GET /api/health`, `GET /api/health/scheduler`: for an external
+      checker.
+security: []
+servers:
+  - url: /
+tags:
+  - name: requester
+  - name: delivery
+  - name: reviewer-auth
+  - name: reviewer
+  - name: ops
+paths:
+  /api/health:
+    get:
+      tags: [ops]
+      summary: Health document (spec §14.1). Unauthenticated.
+      responses:
+        '200':
+          description: No component `degraded`. A `warn` stays 200.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthDocument' }
+        '503':
+          description: At least one component `degraded`. Same body.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthDocument' }
+  /api/health/scheduler:
+    get:
+      tags: [ops]
+      summary: Alias of /api/health. Same document and same statuses.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthDocument' }
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthDocument' }
+
+  /api/reference:
+    get:
+      tags: [requester]
+      summary: What the request form needs to draw its pickers.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [diseaseGroups, provinces]
+                properties:
+                  diseaseGroups:
+                    description: Id and name only. Report codes are never exposed (§4.1).
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                  provinces:
+                    description: Sorted by provinceId.
+                    type: array
+                    items:
+                      type: object
+                      required: [provinceId, nameTh, healthRegion]
+                      properties:
+                        provinceId: { type: string }
+                        nameTh: { type: string }
+                        healthRegion: { type: integer }
+
+  /api/requests:
+    post:
+      tags: [requester]
+      summary: Submit a Request.
+      description: |
+        The client IP (with any `::ffff:` prefix removed; `trust proxy` comes
+        from config) and the `User-Agent` are recorded for the audit trail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diseaseGroupId: { type: string }
+                from: { type: string, format: date, description: 'From 2024-01-01 on' }
+                to: { type: string, format: date, description: 'At most 365 days after from, inclusive' }
+                area:
+                  description: |
+                    Absent or null means national. Otherwise exactly one of
+                    `provinceId` or `region`; both gives `area_conflict`.
+                  oneOf:
+                    - type: 'null'
+                    - type: object
+                      properties:
+                        provinceId: { type: string }
+                    - type: object
+                      properties:
+                        region: { type: integer }
+                contact:
+                  type: object
+                  description: |
+                    Each field trimmed, required and capped at
+                    MAX_FREE_TEXT_LENGTH. The format is never validated.
+                  properties:
+                    name: { type: string }
+                    surname: { type: string }
+                    tel: { type: string }
+                    email: { type: string }
+                    workplace: { type: string }
+      responses:
+        '201':
+          description: The reference number and nothing else, never a row count (§4.1).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reference]
+                properties:
+                  reference: { type: string, example: ABC-2569-00012 }
+        '400':
+          description: |
+            `invalid_request` with every field error at once. Or `no_origin`
+            when the socket has no address.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [code, errors]
+                    properties:
+                      code: { const: invalid_request }
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          required: [field, code, message]
+                          properties:
+                            field:
+                              type: string
+                              enum: [body, diseaseGroupId, from, to, area, name, surname, tel, email, workplace]
+                            code:
+                              type: string
+                              enum: [required, invalid, span_too_long, area_conflict]
+                            message: { type: string, description: English copy from the server }
+                  - type: object
+                    required: [code, message]
+                    properties:
+                      code: { const: no_origin }
+                      message: { type: string }
+        '409':
+          description: |
+            The same ask from the same email is already in progress. The body
+            carries no reference and no status on purpose.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message]
+                properties:
+                  code: { const: request_in_progress }
+                  message: { type: string }
+
+  /d/{token}:
+    get:
+      tags: [delivery]
+      summary: The collection page (spec §16.2, ADR 0018). Outside /api.
+      description: |
+        Server-rendered HTML that works without the SPA bundle (ADR 0003). It
+        never consumes an Attempt. The archive link it renders is
+        `/d/{token}/archive`.
+      parameters:
+        - { $ref: '#/components/parameters/Token' }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/html: {}
+        '302':
+          description: Token dead (unknown, expired, used up or revoked), or no client IP.
+          headers:
+            Location: { schema: { const: /link-expired } }
+        '429':
+          description: This IP is throttled. The body is the link-expired HTML page.
+          content:
+            text/html: {}
+  /d/{token}/archive:
+    get:
+      tags: [delivery]
+      summary: Download the zip. This is the Attempt route (spec §9.2).
+      description: |
+        `Range: bytes=a-b`, `a-` and `-n` are honoured. Only the first range
+        of a list is used. A malformed or unsatisfiable range gets the whole
+        file with a 200, never a 416. Express also routes HEAD to this
+        handler, so a HEAD runs the same code path.
+      parameters:
+        - { $ref: '#/components/parameters/Token' }
+        - in: header
+          name: Range
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Content-Disposition: { schema: { type: string, example: 'attachment; filename="ABC-2569-00012.zip"' } }
+            Content-Length: { schema: { type: integer } }
+          content:
+            application/zip: {}
+        '206':
+          description: Partial Content
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Content-Disposition: { schema: { type: string } }
+            Content-Range: { schema: { type: string, example: bytes 0-1023/52344 } }
+            Content-Length: { schema: { type: integer } }
+          content:
+            application/zip: {}
+        '302':
+          description: Found
+          headers:
+            Location: { schema: { const: /link-expired } }
+        '429':
+          description: Too Many Requests
+          content:
+            text/html: {}
+  /link-expired:
+    get:
+      tags: [delivery]
+      summary: The one dead-link page (spec §9.4). Outside /api.
+      responses:
+        '200':
+          description: OK
+          content:
+            text/html: {}
+
+  /api/reviewer/session:
+    get:
+      tags: [reviewer-auth]
+      summary: Who is signed in. Read-only and never slides the idle window.
+      description: Sets the `reviewer_csrf` cookie when the request carries none.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [authenticated, displayName, expiresAt, mustChangePassword]
+                    properties:
+                      authenticated: { const: true }
+                      displayName: { type: string }
+                      expiresAt: { type: string, format: date-time }
+                      mustChangePassword: { type: boolean }
+                  - type: object
+                    required: [authenticated]
+                    properties:
+                      authenticated: { const: false }
+                      expired: { const: true, description: Present only when the cookie names an expired session }
+  /api/reviewer/sign-in:
+    post:
+      tags: [reviewer-auth]
+      summary: Password plus TOTP. Needs the CSRF header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, code]
+              properties:
+                username: { type: string }
+                password: { type: string }
+                code: { type: string, description: TOTP }
+      responses:
+        '200':
+          description: Sets `reviewer_session` and a fresh `reviewer_csrf`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionInfo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: The same body whichever factor failed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignInFailed' }
+        '403': { $ref: '#/components/responses/Csrf' }
+        '429': { $ref: '#/components/responses/Throttled' }
+  /api/reviewer/sign-out:
+    post:
+      tags: [reviewer-auth]
+      summary: End the session. Allowed while a password change is pending.
+      security: [{ ReviewerSession: [] }]
+      responses:
+        '204':
+          description: Clears `reviewer_session` (but not `reviewer_csrf`).
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/Csrf' }
+  /api/reviewer/password:
+    post:
+      tags: [reviewer-auth]
+      summary: Change password, including the forced first change. Allowed while a change is pending.
+      security: [{ ReviewerSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword, code]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, description: '12-20 chars, with an uppercase letter, a digit and a special character' }
+                code: { type: string, description: TOTP }
+      responses:
+        '204': { description: Changed. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Wrong current password or code (`sign_in_failed`), or the session ended.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/SignInFailed' }
+                  - { $ref: '#/components/schemas/SessionEndedError' }
+        '403': { $ref: '#/components/responses/Csrf' }
+        '422':
+          description: Unprocessable Content
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, violations]
+                properties:
+                  error: { const: password_policy }
+                  violations:
+                    type: array
+                    items: { type: string, enum: [too_short, too_long, no_uppercase, no_digit, no_special] }
+        '429': { $ref: '#/components/responses/Throttled' }
+
+  /api/reviewer/queue:
+    get:
+      tags: [reviewer]
+      summary: Pending queue, Alerts and in-flight Requests in one read (§10.1).
+      security: [{ ReviewerSession: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueList' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+  /api/reviewer/queue/{id}:
+    get:
+      tags: [reviewer]
+      summary: A pending Request's dossier.
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dossier' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/reviewer/queue/{id}/approve:
+    post:
+      tags: [reviewer]
+      summary: Approve. The expiry is re-checked before anything is written (§10.4).
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        description: The Angular app sends `{}`. The body is ignored.
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { $ref: '#/components/responses/DecisionRecorded' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404':
+          description: Not a UUID, or not pending.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotFoundError' } } }
+        '409': { $ref: '#/components/responses/DecisionExpired' }
+  /api/reviewer/queue/{id}/reject:
+    post:
+      tags: [reviewer]
+      summary: Reject, with the mandatory internal note.
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NoteBody' }
+      responses:
+        '200': { $ref: '#/components/responses/DecisionRecorded' }
+        '400':
+          description: '`bad_request` (note missing or not a string) or `invalid_note`. Note that amend-note answers `invalid_note` with 422.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string, enum: [bad_request, invalid_note] }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DecisionExpired' }
+  /api/reviewer/decisions/{eventId}/amend-note:
+    post:
+      tags: [reviewer]
+      summary: Correct an internal note with a new event that cites the original (§12.2). Not called by apps/web.
+      security: [{ ReviewerSession: [] }]
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema: { type: integer }
+          description: A non-integer gets Nest's default 400 shape.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NoteBody' }
+      responses:
+        '204': { description: Amended. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Unprocessable Content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { const: invalid_note }
+  /api/reviewer/alerts/{id}:
+    get:
+      tags: [reviewer]
+      summary: The open Alerts on one Request, with the live contact details (§10.6).
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertDetail' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/reviewer/alerts/{id}/clear:
+    post:
+      tags: [reviewer]
+      summary: Clear one Alert with an outcome from that kind's closed set. There is no free text.
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              description: Any field other than these two gets 400 `bad_request`.
+              required: [kind, outcome]
+              properties:
+                kind: { $ref: '#/components/schemas/AlertKind' }
+                outcome:
+                  type: string
+                  description: |
+                    send_abandoned, collection_lapse: reached_requester |
+                    could_not_reach_requester | no_action_needed.
+                    extraction_failure: contacted_requester | abandoned.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clearedAt, zone]
+                properties:
+                  clearedAt: { type: string, format: date-time }
+                  zone:
+                    description: Where the Request now sits, or null when it has left the surface.
+                    oneOf: [{ $ref: '#/components/schemas/SurfaceZone' }, { type: 'null' }]
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [bad_request, invalid_outcome] }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403':
+          description: '`csrf`, `password_change_required`, or `not_permitted` (this Reviewer may not clear it).'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [csrf, password_change_required, not_permitted] }
+        '404':
+          description: Not a UUID, or no such open Alert.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotFoundError' } } }
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { const: deferred }
+  /api/reviewer/in-flight/{id}:
+    get:
+      tags: [reviewer]
+      summary: An approved Request's detail (§10.7).
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InFlightDetail' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/reviewer/requests/{id}/rerun:
+    post:
+      tags: [reviewer]
+      summary: Re-run the extraction of what was approved (§10.8). The body must be empty.
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, maxProperties: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [queuedAt]
+                properties:
+                  queuedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404':
+          description: Not a UUID, or not in flight.
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotFoundError' } } }
+        '409':
+          description: A job is already queued or running.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { const: extracting }
+  /api/reviewer/requests/{id}/resend:
+    post:
+      tags: [reviewer]
+      summary: Resend the same email to the same address (§10.9, ADR 0017). The body must be empty.
+      security: [{ ReviewerSession: [] }]
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, maxProperties: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sentAt]
+                properties:
+                  sentAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404':
+          description: Not Found
+          content: { application/json: { schema: { $ref: '#/components/schemas/NotFoundError' } } }
+        '409':
+          description: '`nothing_to_resend` (extracting, failed, or not sent yet) or `resend_unavailable` (the sent Delivery is no longer held).'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, enum: [nothing_to_resend, resend_unavailable] }
+  /api/reviewer/lookup:
+    get:
+      tags: [reviewer]
+      summary: Find a Request by its exact reference (§10.10). Read-only.
+      security: [{ ReviewerSession: [] }]
+      parameters:
+        - in: query
+          name: reference
+          required: true
+          description: Trimmed and upper-cased. Empty or longer than 32 characters is 404.
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Still on the surface. The client opens it in that zone.
+                    required: [zone, requestId]
+                    properties:
+                      zone: { $ref: '#/components/schemas/SurfaceZone' }
+                      requestId: { type: string, format: uuid }
+                  - type: object
+                    description: Off the surface. The full record.
+                    required: [zone, record]
+                    properties:
+                      zone: { type: 'null' }
+                      record: { $ref: '#/components/schemas/RequestRecord' }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    ReviewerSession:
+      type: apiKey
+      in: cookie
+      name: reviewer_session
+  parameters:
+    Token:
+      in: path
+      name: token
+      required: true
+      schema: { type: string }
+    RequestId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: A missing or wrongly typed field, or an unexpected field where the body must be empty.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { const: bad_request }
+    Csrf:
+      description: The X-CSRF-Token header is missing or does not match the reviewer_csrf cookie.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { const: csrf }
+    PasswordChangeRequired:
+      description: A password change is still owed.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { const: password_change_required }
+    CsrfOrPasswordChange:
+      description: CSRF mismatch, or a password change is still owed.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, enum: [csrf, password_change_required] }
+    SessionEnded:
+      description: No session, or it expired.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SessionEndedError' }
+    NotFound:
+      description: Not a UUID, or no such Request in this zone.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/NotFoundError' }
+    Throttled:
+      description: Too many failed attempts.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, retryAfterSeconds]
+            properties:
+              error: { const: throttled }
+              retryAfterSeconds: { type: integer }
+    DecisionRecorded:
+      description: The Decision was recorded.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [outcome, decidedAt]
+            properties:
+              outcome: { type: string, enum: [approved, rejected] }
+              decidedAt: { type: string, format: date-time }
+    DecisionExpired:
+      description: Past 24 business hours while it sat open. Nothing was recorded.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { const: expired }
+  schemas:
+    SessionInfo:
+      type: object
+      required: [displayName, expiresAt, mustChangePassword]
+      properties:
+        displayName: { type: string }
+        expiresAt: { type: string, format: date-time }
+        mustChangePassword: { type: boolean }
+    SignInFailed:
+      type: object
+      properties:
+        error: { const: sign_in_failed }
+    SessionEndedError:
+      type: object
+      properties:
+        error: { type: string, enum: [session_expired, unauthenticated] }
+    NotFoundError:
+      type: object
+      properties:
+        error: { const: not_found }
+    NoteBody:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string }
+    ComponentHealth:
+      oneOf:
+        - type: object
+          required: [status]
+          properties:
+            status: { const: ok }
+        - type: object
+          required: [status, reason]
+          properties:
+            status: { type: string, enum: [warn, degraded] }
+            reason: { type: string }
+    HealthDocument:
+      type: object
+      required: [status, components, insecureFlags]
+      properties:
+        status: { type: string, enum: [ok, warn, degraded], description: The worst component's status }
+        components:
+          type: object
+          required: [scheduler, extraction, disk, mail]
+          properties:
+            scheduler: { $ref: '#/components/schemas/ComponentHealth' }
+            extraction: { $ref: '#/components/schemas/ComponentHealth' }
+            disk: { $ref: '#/components/schemas/ComponentHealth' }
+            mail: { $ref: '#/components/schemas/ComponentHealth' }
+        insecureFlags:
+          type: array
+          items: { type: string, enum: [ALLOW_INSECURE_TRANSPORT, SMTP_ALLOW_PLAINTEXT] }
+    Contact:
+      type: object
+      required: [name, surname, tel, email, workplace]
+      properties:
+        name: { type: string }
+        surname: { type: string }
+        tel: { type: string }
+        email: { type: string }
+        workplace: { type: string }
+    Area:
+      oneOf:
+        - type: object
+          required: [kind]
+          properties:
+            kind: { const: national }
+        - type: object
+          required: [kind, provinces, region]
+          properties:
+            kind: { const: provinces }
+            provinces:
+              type: array
+              items:
+                type: object
+                required: [id, name]
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+            region:
+              description: Set only when the provinces are exactly one health region's whole set.
+              type: [integer, 'null']
+    Ask:
+      type: object
+      required: [diseaseGroupName, startDate, endDate, area]
+      properties:
+        diseaseGroupName: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        area: { $ref: '#/components/schemas/Area' }
+    RowCount:
+      description: The probe's row count, or where the probe stands.
+      oneOf:
+        - type: integer
+        - type: string
+          enum: [pending, failed]
+    SurfaceZone:
+      type: string
+      enum: [queue, alerts, in_flight]
+    AlertKind:
+      type: string
+      enum: [send_abandoned, collection_lapse, extraction_failure]
+    RequestState:
+      type: string
+      enum: [pending, rejected, expired, approved, collected, expired_uncollected, abandoned]
+    RequestEventType:
+      type: string
+      enum: [submitted, probe_performed, probe_failed, approved, rejected, note_amended, expired,
+        job_queued, job_deferred_low_disk, job_started, code_fetched, job_completed, job_failed,
+        extraction_alert_raised, extraction_alert_cleared, extraction_rerun_queued, mail_sent,
+        mail_send_failed, mail_send_abandoned, delivery_alert_raised, download_attempted,
+        collection_lapse_raised, collection_lapse_cleared, download_token_revoked,
+        expired_uncollected, object_deleted]
+    QueueRow:
+      type: object
+      required: [id, reference, submittedAt, expiresAt, minutesLeft, expired, ahead, requesterName, diseaseGroupName]
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string }
+        submittedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        minutesLeft: { type: integer, description: Whole minutes of business time left. 0 once expired. }
+        expired: { type: boolean, description: Past 24 business hours. Shown but not actionable. }
+        ahead: { type: [integer, 'null'], description: How many actionable Requests are ahead of this one (a count). Null when expired. }
+        requesterName: { type: string }
+        diseaseGroupName: { type: string }
+    AlertRow:
+      type: object
+      required: [requestId, reference, requesterName, kind, raisedAt, deferred, rerunAttempts, assignedTo, outcomes, clearable, silentHours]
+      properties:
+        requestId: { type: string, format: uuid }
+        reference: { type: string }
+        requesterName: { type: string }
+        kind: { $ref: '#/components/schemas/AlertKind' }
+        raisedAt: { type: string, format: date-time }
+        deferred: { type: boolean }
+        rerunAttempts: { type: integer }
+        assignedTo:
+          type: object
+          required: [displayName, active]
+          properties:
+            displayName: { type: string }
+            active: { type: boolean }
+        outcomes: { type: array, items: { type: string } }
+        clearable: { type: boolean }
+        silentHours: { type: [integer, 'null'] }
+    InFlightListRow:
+      type: object
+      required: [requestId, reference, submittedAt, requesterName, diseaseGroupName, extraction, linkExpiresAt, actions]
+      properties:
+        requestId: { type: string, format: uuid }
+        reference: { type: string }
+        submittedAt: { type: string, format: date-time }
+        requesterName: { type: string }
+        diseaseGroupName: { type: string }
+        extraction: { type: string, enum: [extracting, ready, failed] }
+        linkExpiresAt: { type: [string, 'null'], format: date-time }
+        actions:
+          type: object
+          required: [rerun, resend]
+          properties:
+            rerun: { type: boolean }
+            resend: { type: boolean }
+    QueueList:
+      type: object
+      required: [generatedAt, automaticProcessing, requests, alerts, inFlight]
+      properties:
+        generatedAt: { type: string, format: date-time, description: When this list was read }
+        automaticProcessing: { type: string, enum: [running, stopped] }
+        requests: { type: array, items: { $ref: '#/components/schemas/QueueRow' }, description: Oldest first }
+        alerts: { type: array, items: { $ref: '#/components/schemas/AlertRow' } }
+        inFlight: { type: array, items: { $ref: '#/components/schemas/InFlightListRow' } }
+    Dossier:
+      allOf:
+        - { $ref: '#/components/schemas/QueueRow' }
+        - { $ref: '#/components/schemas/Ask' }
+        - type: object
+          required: [contact, reportCodes, rowCount]
+          properties:
+            contact: { $ref: '#/components/schemas/Contact' }
+            reportCodes: { type: array, items: { type: string } }
+            rowCount: { $ref: '#/components/schemas/RowCount' }
+    AlertDetail:
+      type: object
+      required: [alerts, contact]
+      properties:
+        alerts: { type: array, items: { $ref: '#/components/schemas/AlertRow' } }
+        contact:
+          oneOf: [{ $ref: '#/components/schemas/Contact' }, { type: 'null' }]
+    InFlightDetail:
+      allOf:
+        - { $ref: '#/components/schemas/InFlightListRow' }
+        - { $ref: '#/components/schemas/Ask' }
+        - type: object
+          required: [contact, reportCodes, approvedBy, approvedAt, file]
+          properties:
+            contact: { $ref: '#/components/schemas/Contact', description: Live from the Request, never the Snapshot (ADR 0015) }
+            reportCodes: { type: array, items: { type: string } }
+            approvedBy: { type: string }
+            approvedAt: { type: string, format: date-time }
+            file:
+              oneOf:
+                - type: 'null'
+                - type: object
+                  required: [archiveFilename, attempts]
+                  properties:
+                    archiveFilename: { type: string }
+                    attempts: { type: integer }
+    RequestRecord:
+      allOf:
+        - { $ref: '#/components/schemas/Ask' }
+        - type: object
+          required: [requestId, reference, state, submittedAt, reportCodes, decision, files, events]
+          properties:
+            requestId: { type: string, format: uuid }
+            reference: { type: string }
+            state: { $ref: '#/components/schemas/RequestState' }
+            submittedAt: { type: string, format: date-time }
+            reportCodes: { type: array, items: { type: string } }
+            decision:
+              oneOf:
+                - type: 'null'
+                - type: object
+                  required: [outcome, reviewer, decidedAt, workplace, rowCount]
+                  properties:
+                    outcome: { type: string, enum: [approved, rejected] }
+                    reviewer: { type: string }
+                    decidedAt: { type: string, format: date-time }
+                    workplace: { type: string }
+                    rowCount: { $ref: '#/components/schemas/RowCount' }
+            files:
+              type: array
+              items:
+                type: object
+                required: [run, archiveFilename, link, expiresAt, attempts]
+                properties:
+                  run: { type: integer }
+                  archiveFilename: { type: string }
+                  link: { type: string, enum: [live, used_up, expired, revoked] }
+                  expiresAt: { type: string, format: date-time }
+                  attempts: { type: integer }
+            events:
+              type: array
+              items:
+                type: object
+                required: [type, occurredAt, actor, reviewer]
+                properties:
+                  type: { $ref: '#/components/schemas/RequestEventType' }
+                  occurredAt: { type: string, format: date-time }
+                  actor: { type: string, enum: [requester, reviewer, system, anonymous] }
+                  reviewer: { type: [string, 'null'] }
