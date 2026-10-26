@@ -76,7 +76,7 @@ The unguessable, time-limited capability that lets a Requester collect one Extra
 _Avoid_: Download link, magic link, signed URL
 
 **Attempt**:
-One presentation of a Download token, counted whether or not the transfer completes. Capped at 10 over the token's life. Every attempt is audited; the cap is a backstop against a token that reached somewhere public, not the control.
+One presentation of a live Download token that is answered with bytes of the Extract archive (a 200 or a 206), counted whether or not the transfer completes. Capped at 10 over the token's life. Every presentation is audited, Attempt or not: a page view, a HEAD and a `416` are lookups, never Attempts. The cap is a backstop against a token that reached somewhere public, not the control.
 _Avoid_: Download, try, hit
 
 **Delivery**:

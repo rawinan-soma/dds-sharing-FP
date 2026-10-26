@@ -1239,7 +1239,10 @@ case-level archive before the Requester ever clicked.*
   (`/d/<token>/archive`), counted at presentation, not at completed transfer —
   counting completed transfers would not bind an attacker who aborts at byte 1.
   Opening the page at `/d/<token>` is audited as a lookup and is not an Attempt
-  (ADR 0018).
+  (ADR 0018). **Only a presentation answered with bytes counts** — a `200` or
+  `206`. A `HEAD`, or a `416` for a range that starts at or past the end of the
+  file, is audited as a lookup and moves no state (`docs/port-disagreements.md`
+  D3, D4).
 - **Cap: 10 over the whole 72 h, no rolling window.** Deliberately loose. The cap
   cannot stop a leaked link (one successful download is the entire disclosure);
   its only job is bounding how long a link that reached somewhere public stays
@@ -1487,7 +1490,10 @@ degradation.
 release of case-level personal data with a named human's identity attached. The
 justification is the **irreversibility and the sensitivity**, not the volume —
 the largest Extract is ~1,952 rows (§5.3), and a smaller release is not a safer
-one.
+one. The token's cookie **outlives the session**: it is issued by the session
+check when absent and rotated at every sign-in, and sign-out leaves it. A token
+without a session authorizes nothing, and sign-in is itself guarded by it
+(`docs/port-disagreements.md` D5).
 
 ### 10.6 Alerts on the queue
 

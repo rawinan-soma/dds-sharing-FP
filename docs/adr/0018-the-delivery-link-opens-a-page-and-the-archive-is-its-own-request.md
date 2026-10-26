@@ -71,6 +71,13 @@ used.** Only to a holder of a live token, who already has all of it in the
 Delivery email. A dead or unknown token still reaches the expiry page, which shows
 none of it (§9.4).
 
+**Only bytes make an Attempt** (amended on #19, `docs/port-disagreements.md` D3,
+D4). A `HEAD` on the archive, or a `416` for a range past the end of the file,
+sends none of the Extract, so it is audited as a lookup: it spends no Attempt,
+moves no Request to `collected` and clears no lapse alert. Without this, a
+link-checker that HEADs the archive link would mark an Extract collected that
+nobody received.
+
 **One extra round trip for the Requester.** Accepted: it is one click on a page
 that tells them what they are about to download and how long they have.
 
