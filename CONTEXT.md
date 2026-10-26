@@ -137,3 +137,7 @@ _Avoid_: Live, prod server
 **Pilot**:
 A second service for real Requesters, run on the repo owner's own server and domain and open to the internet — beside Production, never merged into it. Its Decisions and Extracts are real releases of DDS surveillance data; its audit record and its reference numbers are its own, and the record is disposable — losing the Pilot loses every trace of what it released.
 _Avoid_: Staging, test server, demo
+
+**Port**:
+A re-implementation of this service on a different stack, built to evaluate that stack and to learn from rebuilding it. It follows the same rules as the service it translates, but serves no real Requesters and releases no real DDS surveillance data. It is neither Production nor the Pilot.
+_Avoid_: Pilot, new pilot, rewrite
