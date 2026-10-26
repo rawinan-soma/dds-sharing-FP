@@ -426,7 +426,7 @@ paths:
                   error: { const: password_policy }
                   violations:
                     type: array
-                    items: { type: string, enum: [too_short, too_long, no_uppercase, no_digit, no_special] }
+                    items: { type: string, enum: [too_short, too_long, no_uppercase, no_digit, no_special, same_as_current] }
         '429': { $ref: '#/components/responses/Throttled' }
 
   /api/reviewer/queue:
