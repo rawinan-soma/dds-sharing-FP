@@ -161,7 +161,7 @@ An entry with an empty **Ruling** is open.
   **Lands:** with the Port (neither app sends HEAD).
 - **Consequences:** contract archive route gains a `head` operation; the
   Attempt definition narrows as in D3. **The running Pilot has the same hole**;
-  it is outside map #1 and is filed as its own triage issue.
+  it is outside map #1 and is filed as its own triage issue, #24.
 
 ### D5: Sign-out does not clear `reviewer_csrf`
 
