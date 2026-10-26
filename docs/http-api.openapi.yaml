@@ -177,16 +177,15 @@ paths:
                 to: { type: string, format: date, description: 'At most 365 days after from, inclusive' }
                 area:
                   description: |
-                    Absent or null means national. Otherwise exactly one of
-                    `provinceId` or `region`; both gives `area_conflict`.
-                  oneOf:
-                    - type: 'null'
-                    - type: object
-                      properties:
-                        provinceId: { type: string }
-                    - type: object
-                      properties:
-                        region: { type: integer }
+                    Absent, null, or an object with neither key set means
+                    national. Otherwise give one of `provinceId` (one
+                    province) or `region` (a health region's whole set).
+                    Giving both is a 400 `area_conflict`. A null key counts
+                    as absent, and other keys are ignored.
+                  type: [object, 'null']
+                  properties:
+                    provinceId: { type: [string, 'null'] }
+                    region: { type: [integer, 'null'] }
                 contact:
                   type: object
                   description: |
