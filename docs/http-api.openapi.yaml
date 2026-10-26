@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: dds-sharing HTTP API (the Node Pilot, as built)
-  version: pilot-a788f33
+  title: dds-sharing HTTP API (the Node Pilot as built, with the Port's rulings)
+  version: pilot-a788f33+D1-D5
   description: |
     The wire contract both halves of the Port must keep (wayfinder map
     "port the service to elm-land + daisyUI and axum + SeaORM", ticket
@@ -11,7 +11,13 @@ info:
 
     This describes what the code does, not what the spec says. Where the two
     disagree, `docs/spec.md`, `CONTEXT.md` and `docs/adr/` win, and the repo
-    owner rules on the disagreement; this file is then amended.
+    owner rules on the disagreement in `docs/port-disagreements.md`.
+
+    From that ruling on, this file is **the Port's target**. A ruling that
+    lands with the Port amends the operation here and marks it
+    `x-disagreement: [D<n>]`; the Pilot keeps its old behaviour, which the
+    entry records. A ruling that lands after cutover is marked pending: the
+    Port reproduces the Pilot until both halves are ported.
 
     ## Shape of the surface
 
@@ -34,12 +40,20 @@ info:
     - `/api/requests`: `{ "code": ..., ... }`.
     - `/api/reviewer/**`: `{ "error": ... }`.
 
-    Errors raised by the framework keep Nest's default shape
-    `{ "statusCode", "message", "error" }`. That covers malformed JSON (400),
-    a non-integer `eventId` on amend-note (400, from `ParseIntPipe`) and an
-    unknown route (404). The Port should match the status. The body only has
-    to match where the Angular app reads it, which is the `error` field on
-    reviewer 401s.
+    **D1 pending (after cutover):** the two families are unified once both
+    halves are ported. Until then both stay exactly as above.
+
+    Errors the framework raises. The Pilot answers Nest's default shape
+    `{ "statusCode", "message", "error" }` for malformed JSON (400), a
+    non-integer `eventId` on amend-note (400, from `ParseIntPipe`) and an
+    unknown `/api/*` route (404). No client reads that body. **The Port
+    answers in the route's own family, with the same status (D1):**
+
+    - malformed JSON on `/api/requests`: `400 {"code":"invalid_request",
+      "errors":[{"field":"body","code":"invalid","message":...}]}`
+    - malformed JSON or a non-integer `eventId` under `/api/reviewer`:
+      `400 {"error":"bad_request"}`
+    - an unknown `/api/*` route: `404 {"error":"not_found"}`
 
     Request bodies are JSON (`Content-Type: application/json`), parsed by
     Express's default JSON parser (100 kB limit).
@@ -53,7 +67,8 @@ info:
     - `reviewer_csrf` cookie: a double-submit token (32 random bytes,
       base64url). Not `HttpOnly`, same other attributes, session cookie (no
       `Expires`). Issued by `GET /api/reviewer/session` when absent and
-      reissued on every successful sign-in. Sign-out does not clear it.
+      reissued on every successful sign-in. Sign-out does not clear it: the
+      token outlives the session (spec §10.5, D5).
     - Every non-GET/HEAD/OPTIONS route under `/api/reviewer` requires the
       header `X-CSRF-Token` equal to the `reviewer_csrf` cookie, or the
       response is `403 {"error":"csrf"}`. Sign-in is included. This check runs
@@ -277,11 +292,16 @@ paths:
     get:
       tags: [delivery]
       summary: Download the zip. This is the Attempt route (spec §9.2).
+      x-disagreement: [D3]
       description: |
         `Range: bytes=a-b`, `a-` and `-n` are honoured. Only the first range
-        of a list is used. A malformed or unsatisfiable range gets the whole
-        file with a 200, never a 416. Express also routes HEAD to this
-        handler, so a HEAD runs the same code path.
+        of a list is used. A malformed header, or a list, gets the whole file
+        with a 200. A well-formed range that starts at or past the end of the
+        file gets a 416, which is audited as a lookup and is not an Attempt
+        (D3; the Pilot answers it with the whole file and a 200).
+
+        Only a 200 or 206 is an Attempt: it counts against the cap and moves
+        an `approved` Request to `collected`.
       parameters:
         - { $ref: '#/components/parameters/Token' }
         - in: header
@@ -309,10 +329,55 @@ paths:
           description: Found
           headers:
             Location: { schema: { const: /link-expired } }
+        '416':
+          description: Range Not Satisfiable. No body.
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Content-Range: { schema: { type: string, example: 'bytes */52344' } }
         '429':
           description: Too Many Requests
           content:
             text/html: {}
+    head:
+      tags: [delivery]
+      summary: The archive's headers, without an Attempt.
+      x-disagreement: [D4]
+      description: |
+        Answers what the GET would, without a body: the 200, 206 or 416
+        headers for a live token, the 302 for a dead one, the 429 for a
+        blocked client. It writes a `token_lookup` row, but it is not an
+        Attempt, moves no Request state and writes no `download_attempted`.
+        The Pilot routes HEAD to the GET handler, so there a HEAD counts as
+        an Attempt and marks the Request collected.
+      parameters:
+        - { $ref: '#/components/parameters/Token' }
+        - in: header
+          name: Range
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK, no body.
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Content-Disposition: { schema: { type: string } }
+            Content-Length: { schema: { type: integer } }
+        '206':
+          description: Partial Content, no body.
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Content-Disposition: { schema: { type: string } }
+            Content-Range: { schema: { type: string } }
+            Content-Length: { schema: { type: integer } }
+        '302':
+          description: Found
+          headers:
+            Location: { schema: { const: /link-expired } }
+        '416':
+          description: Range Not Satisfiable.
+          headers:
+            Content-Range: { schema: { type: string, example: 'bytes */52344' } }
+        '429':
+          description: Too Many Requests, no body.
   /link-expired:
     get:
       tags: [delivery]
@@ -489,7 +554,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/DecisionRecorded' }
         '400':
-          description: '`bad_request` (note missing or not a string) or `invalid_note`. Note that amend-note answers `invalid_note` with 422.'
+          description: '`bad_request` (note missing or not a string) or `invalid_note`.'
           content:
             application/json:
               schema:
@@ -505,13 +570,14 @@ paths:
     post:
       tags: [reviewer]
       summary: Correct an internal note with a new event that cites the original (§12.2). Not called by apps/web.
+      x-disagreement: [D1, D2]
       security: [{ ReviewerSession: [] }]
       parameters:
         - in: path
           name: eventId
           required: true
           schema: { type: integer }
-          description: A non-integer gets Nest's default 400 shape.
+          description: 'A non-integer gets `400 {"error":"bad_request"}` (D1; the Pilot answers Nest''s default 400 shape).'
       requestBody:
         required: true
         content:
@@ -519,18 +585,18 @@ paths:
             schema: { $ref: '#/components/schemas/NoteBody' }
       responses:
         '204': { description: Amended. }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/SessionEnded' }
-        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422':
-          description: Unprocessable Content
+        '400':
+          description: '`bad_request` or `invalid_note`. The Pilot answers `invalid_note` with 422 (D2).'
           content:
             application/json:
               schema:
                 type: object
+                required: [error]
                 properties:
-                  error: { const: invalid_note }
+                  error: { type: string, enum: [bad_request, invalid_note] }
+        '401': { $ref: '#/components/responses/SessionEnded' }
+        '403': { $ref: '#/components/responses/CsrfOrPasswordChange' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/reviewer/alerts/{id}:
     get:
       tags: [reviewer]
