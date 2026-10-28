@@ -209,3 +209,52 @@ An entry with an empty **Ruling** is open.
 - **Consequences:** the Port's client IP extractor returns the canonical
   address for every route; one test per route family feeds it a mapped
   address.
+
+### D7: Which whitespace rule 4 trims, and how a number becomes text
+
+- **Tag:** unspecified
+- **Found by:** #11
+- **Authority says:** *silent*. §8.2 rule 4 says "**Trim** leading and trailing
+  whitespace on every value" without naming the set; §8.4 makes the Extract's
+  bytes the fingerprint, and ADR 0009 forbids anything that moves the
+  fingerprint of rows that did not change.
+- **Pilot does:** trims with JS `String.prototype.trim()`
+  (`apps/api/src/extraction/extract-writer.ts:30`), which strips U+FEFF but not
+  U+0085, where Rust's `str::trim` does the reverse. Upstream JSON numbers
+  become text through JS `String(n)` (`apps/api/src/extraction/project.ts:93`),
+  so `1.0` is `"1"`, where `serde_json`'s `Display` writes `"1.0"`.
+- **Observable by:** the fingerprint (the same upstream rows written by the
+  Pilot and by the Port would carry different checksums).
+- **Options:** A. The Port's writer is byte-identical with the Pilot's: JS's
+  whitespace set and JS number formatting, pinned by a golden fixture. B. Each
+  implementation is reproducible only against itself.
+- **Ruling:** A, 2026-10-28. The Port releases real data beside the Pilot (ADR
+  0023); two fingerprint functions would split the one description of a release
+  that outlives it. **Lands:** with the Port.
+- **Consequences:** a golden fixture of upstream rows and the Pilot writer's
+  bytes and SHA-256 joins NFR-30's tests: U+FEFF and U+0085 at a value's edge,
+  NBSP, a whitespace-only cell, embedded `,` `"` CRLF, lowercase ICD-10, and
+  JSON numbers including `1.0` (also in `epidem_chw_code`, where a `"10.0"`
+  would miss the province table). The one exception is D8's row.
+
+### D8: A calendar-invalid date rolls over into an `onset_age`
+
+- **Tag:** contradicts
+- **Found by:** #11
+- **Authority says:** §6.3: "**Absent, malformed and impossible inputs all emit
+  an empty cell.**"
+- **Pilot does:** `parseDayPrefix` builds `new Date("YYYY-MM-DDT00:00:00Z")`
+  (`apps/api/src/extraction/project.ts:105`). V8 checks day ≤ 31 but not the
+  month's length, so `2023-02-30` becomes `2023-03-02` and an age is computed
+  from it; `2023-13-01` and `2023-01-32` are rejected.
+- **Observable by:** Requester (an `onset_age` derived from a date that does
+  not exist), and the fingerprint.
+- **Options:** A. Follow the spec: a calendar-invalid `birth_date` or
+  `onset_date` is malformed, `onset_age` is blank and uncounted. B. Reproduce
+  V8's rollover to stay byte-identical (D7).
+- **Ruling:** A, 2026-10-28. The contract wins over the code; copying a V8
+  quirk would make the Port wrong on purpose. **Lands:** with the Port (Extract
+  content only, no wire change).
+- **Consequences:** the golden fixture carries a `2023-02-30` row with the
+  spec's bytes, not the Pilot's: the one deliberate exception to D7. The Pilot
+  keeps its behaviour.
