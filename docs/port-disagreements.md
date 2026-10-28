@@ -183,3 +183,29 @@ An entry with an empty **Ruling** is open.
   and is rotated at sign-in, so clearing it buys no security and costs a
   coupling. **Lands:** nothing changes.
 - **Consequences:** spec §10.5 states the cookie's lifetime.
+
+### D6: Reviewer routes keep the IPv4-mapped prefix
+
+- **Tag:** unspecified
+- **Found by:** #10
+- **Authority says:** *silent* on the form an IP address is recorded in. The
+  audit record keeps it (§12.3) as `inet`, where `::ffff:1.2.3.4` and `1.2.3.4`
+  are different values.
+- **Pilot does:** the Requester and delivery routes strip `::ffff:`
+  (`apps/api/src/requests/requests.controller.ts:41`,
+  `apps/api/src/delivery/delivery.controller.ts:9`, whose comment says every
+  IP-keyed spot does). The Reviewer routes do not: `originOf` passes `req.ip`
+  through (`apps/api/src/reviewer/reviewer.controller.ts:41`) into the per-IP
+  throttle key and the `ip` of a `login_failed` event
+  (`apps/api/src/reviewer/reviewer-auth.ts:144`). The prefix appears only when
+  the socket peer is the client address (`TRUST_PROXY=false`, as in
+  development); the deployed Pilot reads the proxy's `X-Forwarded-For`.
+- **Observable by:** operator (a search of the record for one address misses
+  the Reviewer events, or the Requester ones).
+- **Options:** A. One rule: every route records the canonical form. B.
+  Reproduce the Pilot.
+- **Ruling:** A, 2026-10-28. The Pilot's own comment states the rule; the
+  Reviewer controller is the exception it missed. **Lands:** with the Port.
+- **Consequences:** the Port's client IP extractor returns the canonical
+  address for every route; one test per route family feeds it a mapped
+  address.
