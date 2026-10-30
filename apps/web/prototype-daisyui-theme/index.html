@@ -1,0 +1,326 @@
+<!doctype html>
+<!--
+  PROTOTYPE, throw me away (wayfinder ticket #14).
+  Three variants of the Port's daisyUI theme, switchable via ?variant=A|B|C,
+  on the Request form and the Reviewer queue (?screen=request|queue).
+  The markup is identical across variants: only theme.css differs.
+-->
+<html lang="th" data-theme="dds-a">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PROTOTYPE · daisyUI theme</title>
+    <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-thai/400.css" />
+    <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-thai/500.css" />
+    <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-thai/600.css" />
+    <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans/400.css" />
+    <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans/600.css" />
+    <link rel="stylesheet" href="dist/app.css" />
+    <style>
+      /* Prototype chrome only: not part of the design being judged. */
+      #proto-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 50;
+        display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 999px;
+        background: #111; color: #fff; font: 13px/1.4 system-ui, sans-serif; box-shadow: 0 8px 24px rgb(0 0 0/.35); }
+      #proto-bar button, #proto-bar a { background: #333; color: #fff; border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer; font: inherit; text-decoration: none; }
+      #proto-bar .on { background: #fff; color: #111; }
+      #proto-notes { position: fixed; right: 12px; top: 12px; width: 300px; z-index: 40; background: #111; color: #eee;
+        font: 12px/1.5 system-ui, sans-serif; padding: 10px 12px; border-radius: 10px; opacity: .92; }
+      #proto-notes b { color: #fff; }
+      #proto-notes ul { margin: 4px 0 0 16px; padding: 0; list-style: disc; }
+    </style>
+  </head>
+  <body class="bg-base-300 text-base-content font-sans min-h-screen pb-24">
+    <!-- ================= Request form ================= -->
+    <main data-screen="request" class="max-w-6xl mx-auto px-4 py-8 flex flex-col gap-6">
+      <h1 class="text-2xl font-semibold">ข้อมูลรายบุคคลแบบไม่ระบุตัวตน จากระบบเฝ้าระวังโรค DDS</h1>
+
+      <!-- de-identification block -->
+      <section class="card bg-base-100">
+        <div class="card-body grid md:grid-cols-2 gap-6">
+          <div>
+            <h2 class="font-semibold mb-2 text-success">ได้รับ</h2>
+            <ul class="list-disc ms-5 text-sm space-y-1">
+              <li>รหัสรายงานโรค รหัส ICD-10 และรายการวินิจฉัย</li>
+              <li>วันเกิด อายุ ณ วันเริ่มป่วย เพศ คำนำหน้า สัญชาติ</li>
+              <li>จังหวัดและอำเภอตามทะเบียนราษฎร์</li>
+            </ul>
+          </div>
+          <div class="rounded-[var(--radius-panel)] bg-base-200 p-4">
+            <h2 class="font-semibold mb-2">ไม่ได้รับ</h2>
+            <ul class="list-disc ms-5 text-sm space-y-1 text-muted">
+              <li>ชื่อ นามสกุล และเลขประจำตัวประชาชน</li>
+              <li>ที่อยู่ บ้านเลขที่ ถนน และหมู่บ้าน</li>
+              <li>พิกัดแผนที่</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <form class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-6" onsubmit="return false">
+        <!-- map pane -->
+        <section class="flex flex-col gap-4">
+          <p class="text-sm text-muted">พื้นที่</p>
+          <h2 class="text-3xl font-semibold">เขตสุขภาพที่ 4</h2>
+          <div class="join" role="radiogroup" aria-label="พื้นที่">
+            <button type="button" class="btn join-item" role="radio" aria-checked="false">ทั้งประเทศ</button>
+            <button type="button" class="btn join-item" role="radio" aria-checked="false">เลือกจังหวัด</button>
+            <button type="button" class="btn join-item" role="radio" aria-checked="true">เขตสุขภาพ</button>
+          </div>
+          <p class="text-sm"><strong>กรองตามจังหวัดที่รายงานโรค</strong></p>
+          <div class="grid grid-cols-4 gap-2 w-fit" aria-label="แผนที่เขตสุขภาพ">
+            <!-- 13 regions; 4 is chosen (solid primary), its neighbours are context (wash) -->
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">1</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">2</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">8</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">10</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">3</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-primary text-primary-content font-semibold text-sm">4</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">7</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">9</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">5</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-primary-wash border border-primary text-primary text-sm">13</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">6</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm">11</span>
+            <span class="w-16 h-12 grid place-items-center rounded-[10px] bg-base-100 border border-input text-sm col-start-2">12</span>
+          </div>
+          <ul class="flex flex-wrap gap-1.5">
+            <li class="badge badge-outline">นนทบุรี</li>
+            <li class="badge badge-outline">ปทุมธานี</li>
+            <li class="badge badge-outline">พระนครศรีอยุธยา</li>
+            <li class="badge badge-outline">อ่างทอง</li>
+            <li class="badge badge-outline">ลพบุรี</li>
+            <li class="badge badge-outline">สระบุรี</li>
+            <li class="badge badge-outline">สิงห์บุรี</li>
+            <li class="badge badge-outline">นครนายก</li>
+          </ul>
+        </section>
+
+        <!-- form card -->
+        <section class="card bg-base-100">
+          <div class="card-body gap-5">
+            <header class="flex gap-3 items-start">
+              <span class="grid place-items-center size-10 rounded-full bg-primary-wash text-primary shrink-0" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+              </span>
+              <div>
+                <h2 class="card-title text-lg">ข้อมูลผู้ป่วยโรคจากการประกอบอาชีพและโรคจากสิ่งแวดล้อม</h2>
+                <p class="text-sm text-muted">กรอกสิ่งที่ต้องการ</p>
+              </div>
+            </header>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="font-medium">กลุ่มโรค<span class="text-error" aria-hidden="true">*</span></span>
+              <select class="select w-full">
+                <option>เลือกหนึ่งกลุ่ม…</option>
+                <option selected>โรคปอดจากฝุ่นหินทราย</option>
+              </select>
+            </label>
+
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium">ตั้งแต่<span class="text-error" aria-hidden="true">*</span></span>
+                <input class="input w-full tabular-nums" value="1/3/2568" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium">ถึง<span class="text-error" aria-hidden="true">*</span></span>
+                <input class="input w-full tabular-nums" value="15/4/2569" aria-invalid="true" />
+              </label>
+            </div>
+            <div role="alert" class="alert alert-error alert-soft items-start">
+              <span class="font-semibold">!</span>
+              <div>
+                <p class="font-semibold">ช่วงวันที่ไม่ถูกต้อง</p>
+                <p class="text-sm">ระบบจำกัดไว้ที่ช่วงวันที่ไม่เกิน 365 วันต่อหนึ่งคำขอ</p>
+              </div>
+            </div>
+
+            <div class="divider my-0"></div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium">ชื่อ<span class="text-error" aria-hidden="true">*</span></span>
+                <input class="input w-full" value="สมหญิง" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium">นามสกุล<span class="text-error" aria-hidden="true">*</span></span>
+                <input class="input w-full" placeholder="นามสกุล" />
+              </label>
+            </div>
+            <label class="flex flex-col gap-1.5">
+              <span class="font-medium">หน่วยงาน<span class="text-error" aria-hidden="true">*</span></span>
+              <input class="input w-full" placeholder="เช่น สคร.1 เชียงใหม่ กลุ่มระบาดวิทยา" />
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium">เบอร์โทรศัพท์<span class="text-error" aria-hidden="true">*</span></span>
+                <input class="input w-full tabular-nums" placeholder="เช่น 081 234 5678" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="font-medium flex items-center gap-1">อีเมล<span class="text-error" aria-hidden="true">*</span>
+                  <span class="tooltip tooltip-neutral" data-tip="ลิงก์ดาวน์โหลดจะส่งไปยังอีเมลนี้เท่านั้น">
+                    <span class="badge badge-sm badge-ghost">?</span></span>
+                </span>
+                <input class="input w-full" placeholder="อีเมล" />
+              </label>
+            </div>
+
+            <!-- checklist with meter -->
+            <div class="flex flex-col gap-2.5 rounded-[var(--radius-panel)] bg-base-200 p-4">
+              <div class="grid grid-cols-3 gap-2">
+                <span class="h-1 rounded-sm bg-pending-bright"></span>
+                <span class="h-1 rounded-sm bg-pending-bright"></span>
+                <span class="h-1 rounded-sm bg-inert-wash"></span>
+              </div>
+              <p class="text-sm text-muted">คำขอยังไม่ครบ (3/5) ต้องมี:</p>
+              <ul class="text-sm space-y-1">
+                <li class="flex gap-2 items-center"><span class="badge badge-success badge-xs"></span>เลือกกลุ่มโรค 1 กลุ่ม</li>
+                <li class="flex gap-2 items-center"><span class="badge badge-error badge-xs"></span>ช่วงวันที่ไม่เกิน 365 วัน</li>
+                <li class="flex gap-2 items-center"><span class="badge badge-success badge-xs"></span>ระบุพื้นที่ หรือทั้งประเทศ</li>
+                <li class="flex gap-2 items-center"><span class="badge badge-info badge-xs"></span>ชื่อ นามสกุล และหน่วยงาน</li>
+                <li class="flex gap-2 items-center"><span class="badge badge-success badge-xs"></span>โทรศัพท์และอีเมลที่ติดต่อได้จริง</li>
+              </ul>
+            </div>
+
+            <label class="flex gap-3 items-start text-sm">
+              <input type="checkbox" class="checkbox checkbox-primary mt-0.5" />
+              <span>ข้าพเจ้าได้อ่านและยอมรับ <a class="link link-primary">ประกาศความเป็นส่วนตัว (PDPA)</a></span>
+            </label>
+
+            <div class="flex justify-between gap-3">
+              <button type="button" class="btn btn-ghost">ล้างฟอร์ม</button>
+              <button type="submit" class="btn btn-primary">ส่งคำขอข้อมูล</button>
+            </div>
+          </div>
+        </section>
+      </form>
+    </main>
+
+    <!-- ================= Reviewer queue ================= -->
+    <main data-screen="queue" hidden class="max-w-6xl mx-auto px-4 py-8">
+      <div class="card bg-base-100">
+        <header class="flex items-center justify-between px-6 py-4 border-b border-hairline">
+          <div class="flex items-baseline gap-2">
+            <span class="font-semibold">DDS Sharing</span>
+            <span class="text-sm text-muted">ผู้ตรวจสอบ</span>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span>somchai.k</span>
+            <button class="btn btn-outline btn-sm">ออกจากระบบ</button>
+          </div>
+        </header>
+
+        <div class="bg-quiet px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div role="tablist" class="tabs tabs-box">
+            <a role="tab" class="tab tab-active">รอพิจารณา <span class="badge badge-sm ms-2 tabular-nums">3</span></a>
+            <a role="tab" class="tab">ต้องจัดการ <span class="badge badge-sm badge-error ms-2 tabular-nums">1</span></a>
+            <a role="tab" class="tab">กำลังดำเนินการ <span class="badge badge-sm ms-2 tabular-nums">4</span></a>
+          </div>
+          <div class="flex items-center gap-3 text-sm text-muted">
+            <span>อัปเดตเมื่อ 4 นาทีที่แล้ว · มี 1 รายการเปลี่ยนแปลง</span>
+            <button class="btn btn-outline">รีเฟรช</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto px-2 pb-4">
+          <table class="table">
+            <thead>
+              <tr><th>คำขอ</th><th>ผู้ขอ</th><th>ส่งเมื่อ</th><th>เวลาที่เหลือ</th><th>สถานะ</th></tr>
+            </thead>
+            <tbody>
+              <tr class="hover:bg-base-200 cursor-pointer">
+                <td><p class="font-medium">โรคปอดจากฝุ่นหินทราย</p><p class="text-sm text-muted">เขตสุขภาพที่ 4 · 1 มี.ค. 68 – 28 ก.พ. 69</p></td>
+                <td><p>สมหญิง ใจดี</p><p class="text-sm text-muted">สคร.4 สระบุรี</p></td>
+                <td class="tabular-nums">29 ต.ค. 69 09:12</td>
+                <td class="tabular-nums text-error font-semibold">1 ชม. 40 น.</td>
+                <td><span class="badge badge-soft badge-warning">รอพิจารณา</span></td>
+              </tr>
+              <tr class="hover:bg-base-200 cursor-pointer">
+                <td><p class="font-medium">โรคจากสารตะกั่ว</p><p class="text-sm text-muted">ทั้งประเทศ · 1 ม.ค. 69 – 30 ก.ย. 69</p></td>
+                <td><p>อนันต์ ศรีสุข</p><p class="text-sm text-muted">กองโรคจากการประกอบอาชีพฯ</p></td>
+                <td class="tabular-nums">29 ต.ค. 69 14:30</td>
+                <td class="tabular-nums">7 ชม. 05 น.</td>
+                <td><span class="badge badge-soft badge-warning">รอพิจารณา</span></td>
+              </tr>
+              <tr class="hover:bg-base-200 cursor-pointer">
+                <td><p class="font-medium">โรคจากความร้อน</p><p class="text-sm text-muted">เชียงใหม่ · 1 เม.ย. 69 – 30 มิ.ย. 69</p></td>
+                <td><p>ปรีชา มั่นคง</p><p class="text-sm text-muted">สสจ.เชียงใหม่</p></td>
+                <td class="tabular-nums">30 ต.ค. 69 08:01</td>
+                <td class="tabular-nums">22 ชม. 50 น.</td>
+                <td><span class="badge badge-soft badge-warning">รอพิจารณา</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="px-4 pt-3 text-sm text-muted">Other state tags in this theme:
+            <span class="badge badge-soft badge-success">ไฟล์พร้อมแล้ว</span>
+            <span class="badge badge-soft badge-info">กำลังดึงข้อมูล</span>
+            <span class="badge badge-soft badge-error">ดึงข้อมูลไม่สำเร็จ</span>
+          </p>
+        </div>
+      </div>
+      <div class="toast toast-start">
+        <div class="alert bg-neutral text-neutral-content border-0">
+          <span><b>เซสชันใกล้หมดเวลา</b> <span class="text-inverse-muted">ทำงานต่อเพื่ออยู่ในระบบ</span></span>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================= prototype chrome ================= -->
+    <aside id="proto-notes" title="click to hide" onclick="this.hidden=true"></aside>
+    <nav id="proto-bar">
+      <button data-go="prev" aria-label="previous variant">←</button>
+      <span id="proto-label"></span>
+      <button data-go="next" aria-label="next variant">→</button>
+      <span style="opacity:.4">|</span>
+      <button data-screen-go="request">Request</button>
+      <button data-screen-go="queue">Queue</button>
+      <a href="templates/delivery.html">Server build →</a>
+    </nav>
+
+    <script>
+      const VARIANTS = {
+        A: { name: 'Faithful (theme + overrides)', notes: [
+          'Looks like today: 3.25:1 input edges, focus halo, exact washes, 20px card + one low shadow, wash segmented control, 40px buttons / 44px fields.',
+          'Cost: ~85 lines of per-component overrides in theme.css, keyed to daisyUI internals (--btn-bg, --input-color…). A daisyUI upgrade can silently break them.',
+        ]},
+        B: { name: 'System shape, daisyUI parts', notes: [
+          'Our radii, flat depth, extra tokens declared; daisyUI draws every component as it ships.',
+          'Fails WCAG 1.4.11: input/select edge is base-content at 20% ≈ 1.5:1 (needs 3:1).',
+          'Fields and buttons share one size slot: both 44px. Card is 12px (no 20px slot), no shadow. Segmented control is solid grey join, not wash+edge.',
+          'Washes are daisyUI -soft (8% mix), close to but not our wash values.',
+        ]},
+        C: { name: 'Colour slots only', notes: [
+          'Our colours on daisyUI\'s light-theme shape: 4px fields, 8px boxes, pill selectors, depth shading, 40px everything.',
+          'Same 1.4.11 failure as B. Reads as "daisyUI demo in our blue" rather than the B design system.',
+          'Cost: ~35 lines; nothing to maintain on upgrades.',
+        ]},
+      };
+      const keys = Object.keys(VARIANTS);
+      const params = new URLSearchParams(location.search);
+      let v = keys.includes(params.get('variant')) ? params.get('variant') : 'A';
+      let screen = params.get('screen') === 'queue' ? 'queue' : 'request';
+
+      function render() {
+        document.documentElement.dataset.theme = 'dds-' + v.toLowerCase();
+        document.querySelectorAll('main[data-screen]').forEach(m => m.hidden = m.dataset.screen !== screen);
+        document.getElementById('proto-label').textContent = v + ' (' + VARIANTS[v].name + ')';
+        document.querySelectorAll('[data-screen-go]').forEach(b => b.classList.toggle('on', b.dataset.screenGo === screen));
+        document.getElementById('proto-notes').innerHTML =
+          '<b>Variant ' + v + ': ' + VARIANTS[v].name + '</b><br>data-theme="dds-' + v.toLowerCase() + '"<ul>' +
+          VARIANTS[v].notes.map(n => '<li>' + n + '</li>').join('') + '</ul>';
+        const p = new URLSearchParams({ variant: v, screen });
+        history.replaceState(null, '', '?' + p);
+        document.querySelector('#proto-bar a').href = 'templates/delivery.html?variant=' + v;
+      }
+      function step(d) { v = keys[(keys.indexOf(v) + d + keys.length) % keys.length]; render(); }
+      document.querySelector('[data-go=prev]').onclick = () => step(-1);
+      document.querySelector('[data-go=next]').onclick = () => step(1);
+      document.querySelectorAll('[data-screen-go]').forEach(b => b.onclick = () => { screen = b.dataset.screenGo; render(); });
+      addEventListener('keydown', e => {
+        if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+        if (e.key === 'ArrowLeft') step(-1);
+        if (e.key === 'ArrowRight') step(1);
+      });
+      render();
+    </script>
+  </body>
+</html>

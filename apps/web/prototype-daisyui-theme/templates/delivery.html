@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- PROTOTYPE. Stands in for the askama `/d/<token>` page: styled ONLY by
+     dist/server.css, the templates-only build over the same theme.css. -->
+<html lang="th" data-theme="dds-a">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PROTOTYPE · delivery page (server build)</title>
+    <link rel="stylesheet" href="../node_modules/@fontsource/ibm-plex-sans-thai/400.css" />
+    <link rel="stylesheet" href="../node_modules/@fontsource/ibm-plex-sans-thai/600.css" />
+    <link rel="stylesheet" href="../dist/server.css" />
+  </head>
+  <body class="bg-base-300 text-base-content font-sans min-h-screen grid place-items-center p-4">
+    <main class="card bg-base-100 w-full max-w-xl">
+      <div class="card-body gap-4">
+        <p class="text-sm text-muted">คำขอเลขที่ DDS-2569-000412</p>
+        <h1 class="card-title text-xl">ไฟล์ตามคำขอของท่านพร้อมแล้ว</h1>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-[var(--radius-panel)] bg-quiet p-4 text-sm">
+          <dt class="text-muted">ชื่อไฟล์</dt><dd class="tabular-nums">dds-2569-000412.zip</dd>
+          <dt class="text-muted">ขนาด</dt><dd class="tabular-nums">1.2 MB</dd>
+          <dt class="text-muted">ดาวน์โหลดแล้ว</dt><dd class="tabular-nums">1 จาก 5 ครั้ง</dd>
+          <dt class="text-muted">เวลาที่เหลือ</dt><dd class="tabular-nums"><span class="badge badge-soft badge-warning">เหลืออีก 41 ชั่วโมง</span></dd>
+        </dl>
+        <button class="btn btn-primary w-full">ดาวน์โหลดไฟล์</button>
+        <div role="alert" class="alert alert-error alert-soft items-start">
+          <div><p class="font-semibold">อย่าส่งต่อลิงก์นี้</p>
+          <p class="text-sm">ใครก็ตามที่เปิดลิงก์นี้ได้จะดาวน์โหลดไฟล์ได้ทันที</p></div>
+        </div>
+      </div>
+    </main>
+    <a href="../index.html" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:6px 14px;border-radius:999px;font:13px system-ui">← back to app build</a>
+    <script>
+      const v = new URLSearchParams(location.search).get('variant');
+      if (/^[ABC]$/.test(v ?? '')) document.documentElement.dataset.theme = 'dds-' + v.toLowerCase();
+      document.querySelector('a[href="../index.html"]').href = '../index.html?variant=' + (v ?? 'A');
+    </script>
+  </body>
+</html>

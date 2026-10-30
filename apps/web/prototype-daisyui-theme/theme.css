@@ -1,0 +1,263 @@
+/*
+  PROTOTYPE, throw me away (wayfinder ticket #14, "A daisyUI theme for the Port").
+
+  This is THE one theme source. app.css (the Elm app's build) and server.css
+  (the templates-only build the binary embeds) both @import it, and nothing
+  else defines a colour. For the prototype it holds three candidate themes,
+  one per variant; the winner becomes the whole file.
+
+    C  dds-c  colour slots only. daisyUI's own radii, depth, sizes, input edges.
+              Washes come from daisyUI's `-soft` mix (8% of the ink on white).
+    B  dds-b  C + the system's radii, sizes, flat depth, and our extra tokens
+              declared. Still no per-component CSS: daisyUI draws the parts.
+    A  dds-a  B + an override block that puts back what daisyUI's defaults
+              lose: the 3.25:1 input edge, the focus halo, the exact washes,
+              the 20px card with its one low shadow, the segmented control.
+
+  Every colour is a hex literal on purpose: the emails can't read CSS
+  variables, so build.rs reads these lines (see README.md).
+*/
+
+/* ---- Tokens daisyUI has no slot for: one copy, every variant ---------- */
+
+@theme {
+  --font-sans: 'IBM Plex Sans Thai', 'IBM Plex Sans', system-ui, sans-serif;
+
+  --color-input: #7a7e88; /* the edge of anything you type into or press */
+  --color-hairline: #dfe1e6; /* dividers only, 1.31:1 */
+  --color-muted: #5f6470;
+  --color-quiet: #f7f8fa;
+  --color-primary-wash: #eef1ff;
+  --color-primary-hover: #3050e8;
+  --color-success-wash: #e6f4ec;
+  --color-pending: #8a5a00;
+  --color-pending-wash: #fdf3dc;
+  --color-pending-bright: #b7791f; /* graphics only */
+  --color-failed-wash: #fbe9eb;
+  --color-inert: #5f6470;
+  --color-inert-wash: #eceef2;
+  --color-inverse-muted: #c9ccd3;
+
+  --shadow-card: 0 30px 60px rgb(0 0 0 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(59 91 253 / 0.18);
+  --radius-panel: 14px;
+  --radius-xl: 20px;
+}
+
+/* ---- C: colour slots only --------------------------------------------- */
+
+@plugin "daisyui/theme" {
+  name: "dds-c";
+  default: true;
+  color-scheme: light;
+
+  --color-base-100: #ffffff; /* card */
+  --color-base-200: #f7f8fa; /* quiet panel */
+  --color-base-300: #e4e6ea; /* the page */
+  --color-base-content: #1b1d24;
+  --color-primary: #3b5bfd;
+  --color-primary-content: #ffffff;
+  /* No secondary in B: it is the wash, "the mode you are in". */
+  --color-secondary: #eef1ff;
+  --color-secondary-content: #3b5bfd;
+  --color-accent: #3b5bfd;
+  --color-accent-content: #ffffff;
+  /* The foreground panel: Field tooltip, Toast. */
+  --color-neutral: #1b1d24;
+  --color-neutral-content: #ffffff;
+  /* inert has no slot; info is the nearest unused one. */
+  --color-info: #5f6470;
+  --color-info-content: #ffffff;
+  --color-success: #1a7a4f;
+  --color-success-content: #ffffff;
+  --color-warning: #8a5a00;
+  --color-warning-content: #ffffff;
+  --color-error: #c42b3a;
+  --color-error-content: #ffffff;
+
+  /* daisyUI's `light` defaults, written out: a new theme inherits nothing. */
+  --radius-selector: 2rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ---- B: + the system's shape ------------------------------------------ */
+
+@plugin "daisyui/theme" {
+  name: "dds-b";
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f8fa;
+  --color-base-300: #e4e6ea;
+  --color-base-content: #1b1d24;
+  --color-primary: #3b5bfd;
+  --color-primary-content: #ffffff;
+  --color-secondary: #eef1ff;
+  --color-secondary-content: #3b5bfd;
+  --color-accent: #3b5bfd;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1b1d24;
+  --color-neutral-content: #ffffff;
+  --color-info: #5f6470;
+  --color-info-content: #ffffff;
+  --color-success: #1a7a4f;
+  --color-success-content: #ffffff;
+  --color-warning: #8a5a00;
+  --color-warning-content: #ffffff;
+  --color-error: #c42b3a;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 6px; /* radius-sm: tags, segments, checkboxes */
+  --radius-field: 10px; /* radius-md: fields and buttons */
+  --radius-box: 12px; /* radius-lg; the 20px card has no slot */
+  --size-selector: 0.25rem;
+  /* One size for fields AND buttons in daisyUI: 44px fields, 40px buttons
+     can't both hold. 0.275rem × 10 = 44px for both. */
+  --size-field: 0.275rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ---- A: B + overrides -------------------------------------------------- */
+
+@plugin "daisyui/theme" {
+  name: "dds-a";
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f8fa;
+  --color-base-300: #e4e6ea;
+  --color-base-content: #1b1d24;
+  --color-primary: #3b5bfd;
+  --color-primary-content: #ffffff;
+  --color-secondary: #eef1ff;
+  --color-secondary-content: #3b5bfd;
+  --color-accent: #3b5bfd;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1b1d24;
+  --color-neutral-content: #ffffff;
+  --color-info: #5f6470;
+  --color-info-content: #ffffff;
+  --color-success: #1a7a4f;
+  --color-success-content: #ffffff;
+  --color-warning: #8a5a00;
+  --color-warning-content: #ffffff;
+  --color-error: #c42b3a;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 6px;
+  --radius-field: 10px;
+  --radius-box: 12px;
+  --size-selector: 0.25rem;
+  --size-field: 0.275rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* daisyUI 5 emits its components into Tailwind's `utilities` layer, so an
+   override in `components` silently loses. Found by this prototype. */
+@layer utilities {
+  /* WCAG 1.4.11: daisyUI's edge is base-content at 20% (~1.5:1). */
+  [data-theme='dds-a'] :is(.input, .select, .textarea, .checkbox) {
+    --input-color: var(--color-input);
+  }
+  [data-theme='dds-a'] :is(.input, .select, .textarea):focus-within {
+    --input-color: var(--color-primary);
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+  [data-theme='dds-a'] .input[aria-invalid='true'] {
+    --input-color: var(--color-error);
+  }
+
+  /* Buttons are 40px, fields 44px. */
+  [data-theme='dds-a'] .btn {
+    --size: 40px;
+    font-weight: 500;
+  }
+  [data-theme='dds-a'] .btn-primary {
+    font-weight: 600;
+    --btn-shadow: none;
+  }
+  [data-theme='dds-a'] .btn-primary:hover {
+    --btn-bg: var(--color-primary-hover);
+  }
+  /* The secondary button: card with the input edge. */
+  [data-theme='dds-a'] .btn-outline {
+    --btn-bg: var(--color-base-100);
+    --btn-border: var(--color-input);
+    --btn-fg: var(--color-base-content);
+  }
+  [data-theme='dds-a'] .btn-outline:hover {
+    --btn-border: var(--color-primary);
+    --btn-bg: var(--color-base-100);
+    --btn-fg: var(--color-base-content);
+  }
+
+  /* The form card: 20px and one low shadow. */
+  [data-theme='dds-a'] .card {
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The segmented control: wash with a primary edge is "the mode you're in". */
+  [data-theme='dds-a'] .join > .btn {
+    --size: auto;
+    padding-block: 6px;
+    font-size: 13px;
+    font-weight: 400;
+    --btn-bg: var(--color-base-100);
+    --btn-border: var(--color-input);
+  }
+  [data-theme='dds-a'] .join > .btn[aria-checked='true'] {
+    --btn-bg: var(--color-primary-wash);
+    --btn-border: var(--color-primary);
+    --btn-fg: var(--color-primary);
+    font-weight: 600;
+    z-index: 1;
+  }
+
+  /* State tags: the system's exact washes, not an 8% mix. */
+  [data-theme='dds-a'] .badge-soft {
+    border-color: transparent;
+    font-weight: 600;
+  }
+  [data-theme='dds-a'] .badge-soft.badge-success {
+    background-color: var(--color-success-wash);
+  }
+  [data-theme='dds-a'] .badge-soft.badge-warning {
+    background-color: var(--color-pending-wash);
+  }
+  [data-theme='dds-a'] .badge-soft.badge-error {
+    background-color: var(--color-failed-wash);
+  }
+  [data-theme='dds-a'] .badge-soft.badge-info {
+    background-color: var(--color-inert-wash);
+  }
+  [data-theme='dds-a'] .alert-soft.alert-error {
+    background-color: var(--color-failed-wash);
+    border-color: transparent;
+  }
+
+  /* Zone tabs: the selected segment lifts off a grey track. */
+  [data-theme='dds-a'] .tabs-box {
+    background: var(--color-inert-wash);
+    box-shadow: none;
+  }
+  [data-theme='dds-a'] .tabs-box > .tab-active {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+
+  [data-theme='dds-a'] :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}

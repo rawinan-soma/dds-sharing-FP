@@ -1,0 +1,13 @@
+/* PROTOTYPE. The templates-only build the binary embeds and inlines
+   (the delivery page decision): same theme file, scans askama templates only. */
+@import 'tailwindcss' source(none);
+@source './templates';
+@plugin 'daisyui' {
+  themes: false;
+}
+@import './theme.css';
+
+body {
+  font-size: 15px;
+  line-height: 1.65;
+}

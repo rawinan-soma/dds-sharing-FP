@@ -1,0 +1,16 @@
+{
+  "name": "prototype-daisyui-theme",
+  "private": true,
+  "description": "PROTOTYPE, throw me away: the daisyUI theme question (wayfinder ticket #14). Not part of the workspace.",
+  "scripts": {
+    "build": "tailwindcss -i app.css -o dist/app.css && tailwindcss -i server.css -o dist/server.css",
+    "start": "npm run build && echo 'open http://localhost:4300/  (variants: ?variant=A|B|C)' && python3 -m http.server 4300"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-sans-thai": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "@tailwindcss/cli": "4.3.3",
+    "tailwindcss": "4.3.3",
+    "daisyui": "5.7.50"
+  }
+}

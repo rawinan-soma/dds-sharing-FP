@@ -1,0 +1,15 @@
+/* PROTOTYPE. The Elm app's build: elm-land runs this through PostCSS. */
+@import 'tailwindcss' source(none);
+@source './index.html';
+@plugin 'daisyui' {
+  themes: false;
+}
+@import './theme.css';
+
+body {
+  font-size: 15px;
+  line-height: 1.65;
+}
+h1, h2, h3 {
+  line-height: 1.35;
+}
