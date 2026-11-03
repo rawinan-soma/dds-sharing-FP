@@ -180,7 +180,7 @@ From a name search of the Hackage package index on 2026-11-03 (`queue|job|worker
 | hand-rolled SKIP LOCKED | existing tables / persistent | — | yes | build it (`run_at`) | build it | build it | build it (stall guard) | build it | the tick |
 | BullMQ layout | Redis / hedis + BullMQ Lua | no Haskell client exists | — | would be BullMQ's | would be BullMQ's | would be BullMQ's | would be BullMQ's | none (bull-board dropped) | — |
 | hworker | Redis (own layout) / hedis | 0.1.0.1 (2017-01-01) | — | `Retry` status, no backoff stated | not stated | not stated | monitor re-queues after timeout | none | none |
-| faktory | Faktory server (Go, AGPL) | 1.2.0.0 (2026-07-23) | — | server: 25 tries, `15+count^4+jitter` | `at` / `in` | worker settings (not read) | reservation timeout (`reserveFor`) | Faktory Web UI | Enterprise only |
+| faktory | Faktory server (Go, AGPL) | 1.2.0.0 (2026-07-23) | — | server: 25 tries, `15+count^4+jitter` | `at` / `in` | worker settings (not read) | reservation timeout (`reserveFor`) | Faktory Web UI | Enterprise-only `cron.toml` |
 | loop + `threadDelay` | none | base | — | — | — | — | — | — | the tick |
 | `cron` | memory | 0.7.2 (2024-11-09) | — | — | — | — | — | — | five-field `execSchedule` |
 
