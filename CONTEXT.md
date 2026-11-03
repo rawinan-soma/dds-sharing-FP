@@ -139,5 +139,5 @@ A second service for real Requesters, run on the repo owner's own server and dom
 _Avoid_: Staging, test server, demo
 
 **Port**:
-A re-implementation of this service on a different stack, built to evaluate that stack and to learn from rebuilding it. It follows the same rules as the service it translates. In development it serves no real Requesters and touches no real DDS surveillance data; once deployed, it serves real Requesters and its Decisions are real releases, as a separate service beside the Pilot. It is neither Production nor the Pilot, and never replaces either.
+A re-implementation of this service on a different stack, built to evaluate that stack and to learn from rebuilding it. It follows the same rules as the service it translates. In development it serves no real Requesters and touches no real DDS surveillance data; once deployed, it serves real Requesters and its Decisions are real releases, as a separate service beside the Pilot, with its own audit record, its own reference numbers (`PRT`), and a record as disposable as the Pilot's. It is neither Production nor the Pilot, and never replaces either.
 _Avoid_: Pilot, new pilot, rewrite

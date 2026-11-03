@@ -52,7 +52,7 @@ catcher. The upstream token and real Extracts sit wherever the Port is deployed.
 **The deployed Port needs its own answers to what the Pilot settled for
 itself**: a reference prefix that says which service to look in, the PDPO
 notice, whether its record is disposable, and how a Requester knows which of two
-services they are using. These are open on the Port map.
+services they are using. [ADR 0025](0025-the-deployed-port-takes-the-pilots-answers-under-its-own-names.md) answers them.
 
 **Its upstream traffic is real traffic** and counts in §13.6's report the same
 way the Pilot's does.

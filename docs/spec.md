@@ -1780,6 +1780,11 @@ are not a design risk: volume is single-digit messages per Request. **Confirm th
 relay hostname verbatim before it lands in config** — `uc-workd` is close enough
 to a typo to be worth one deliberate check.
 
+The deployed Port sends as `noreply-dds-sharing-port@ddc.mail.go.th` through the
+same relay and login, once an outside Gmail inbox has received a test from it;
+until then it uses the Pilot's address
+([ADR 0025](adr/0025-the-deployed-port-takes-the-pilots-answers-under-its-own-names.md)).
+
 **Mailpit covers development.**
 
 ### 11.3 Send failure
@@ -2077,8 +2082,10 @@ about.
 **A display label; the UUID is the key.** `REQ-2569-0142` in shape, stamped at
 submit and accepted by every lookup surface, but foreign keys use the UUID.
 **The prefix is configuration** (`REFERENCE_PREFIX`, `REQ` by default): each
-service that keeps its own record stamps its own, and the Pilot's is `PLT`
-([ADR 0022](adr/0022-a-disposable-pilot-releases-real-data-from-the-repo-owners-server.md)),
+service that keeps its own record stamps its own: the Pilot's is `PLT`
+([ADR 0022](adr/0022-a-disposable-pilot-releases-real-data-from-the-repo-owners-server.md))
+and the deployed Port's is `PRT`
+([ADR 0025](adr/0025-the-deployed-port-takes-the-pilots-answers-under-its-own-names.md)),
 so a number quoted over the telephone names the service that holds it. Its
 exact format — Buddhist-era year, what the counter resets on, whether it must be
 unguessable — is free to change, because a key that is not finished being designed
@@ -3272,6 +3279,29 @@ the repo owner 2026-09-28, with these costs stated rather than discovered:
 
 **Reversal:** `docker compose down` on the Pilot's server, then deleting its
 volumes — which, the record being disposable, is also the whole of retiring it.
+
+### 18.16 The deployed Port takes the Pilot's costs on a host of its own
+
+The deployed **Port** ([ADR 0023](adr/0023-the-deployed-port-releases-real-data-beside-the-pilot.md),
+[ADR 0025](adr/0025-the-deployed-port-takes-the-pilots-answers-under-its-own-names.md))
+is a third release service: a separate host of the repo owner's, its own
+Cloudflare Tunnel and host name, the real upstream, real Extracts under the same
+approval gate. Every cost §18.15 states for the Pilot is accepted again for it,
+on that host:
+
+- **Case-level DDS surveillance data on personally owned hardware** for up to 72
+  hours per Extract; the PDPO is told of it as of the Pilot.
+- **Cloudflare terminates TLS**; the upstream token and relay credentials live on
+  the host.
+- **Its record is disposable.** No backup and no export; a release from the Port
+  may leave no trace anywhere.
+- **One Reviewer at launch**, the repo owner; the two-Reviewer minimum is unmet
+  until a colleague is seeded.
+- **Nothing on its pages names it.** A Requester tells it from the Pilot by the
+  host name, and once they have one by the `PRT-` reference number.
+
+**Reversal:** `xtask deploy down`, then deleting its volumes — the whole of
+retiring it, as on the Pilot.
 
 ---
 
