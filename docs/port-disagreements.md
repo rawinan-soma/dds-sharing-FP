@@ -258,3 +258,28 @@ An entry with an empty **Ruling** is open.
 - **Consequences:** the golden fixture carries a `2023-02-30` row with the
   spec's bytes, not the Pilot's: the one deliberate exception to D7. The Pilot
   keeps its behaviour.
+
+### D9: The seeding retention notice is printed in English
+
+- **Tag:** unspecified
+- **Found by:** #18
+- **Authority says:** *silent* on the language. §12.9: the seeding CLI "also
+  prints what is recorded about them and that it is permanent", and first login
+  "shows it once"; ADR 0010: `en` is never served in production, so first login
+  shows the Thai catalogue.
+- **Pilot does:** reads `messages/en.json` at runtime
+  (`apps/api/src/cli/retention-notice.ts:7`) and prints it at seeding
+  (`apps/api/src/cli/reviewer-cli.ts:110`), although its own comment calls it
+  "the same words first login shows". A Reviewer hears the notice in English
+  and then reads it in Thai.
+- **Observable by:** Reviewer (on the seeding call), operator.
+- **Options:** A. Thai, from the `build.rs` copy functions over
+  `messages.th.json`: the words first login shows, a missing key is a compile
+  error, and the image ships no `messages/`. B. English, as the Pilot does,
+  which needs a second `build.rs` pass over `messages.en.json` or a runtime file
+  read. C. Both, Thai first.
+- **Ruling:** A, 2026-11-03. One source of truth with first login, which is what
+  the Pilot meant to do. **Lands:** with the Port (terminal output only, no wire
+  change).
+- **Consequences:** the Port's seeding test asserts the Thai catalogue's words.
+  The Pilot keeps its behaviour.
